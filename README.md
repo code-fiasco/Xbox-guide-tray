@@ -24,7 +24,7 @@ A companion USB dongle is in development that will plug into a USB port and let 
 
 ## Installation
 
-1. Download and run `XboxGuideTray-Setup-1.0.0.exe` from the [Releases](https://github.com/code-fiasco/Xbox-Guide-Tray/releases) page (or build the installer locally—see [Building](#building)).
+1. Download and run `XboxGuideTray-Setup-1.0.0.exe` from the [Releases](https://github.com/code-fiasco/Xbox-guide-tray/releases) page (or build the installer locally—see [Building](#building)).
 2. During setup, choose whether to **install HidHide**. This is recommended if you use the power menu while other apps are visible in the background.
 3. If prompted after HidHide installation, **restart Windows** so the driver can load fully.
 4. On first launch, open **Settings** and select your controller and launcher application.
@@ -132,5 +132,5 @@ HidHide is developed by [nefarius](https://github.com/nefarius/HidHide) and is s
 
 ## Links
 
-- [Xbox Guide Tray on GitHub](https://github.com/code-fiasco/Xbox-Guide-Tray)
+- [Xbox Guide Tray on GitHub](https://github.com/code-fiasco/Xbox-guide-tray)
 - [HidHide project](https://github.com/nefarius/HidHide)
