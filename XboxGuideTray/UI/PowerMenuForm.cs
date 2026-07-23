@@ -79,7 +79,18 @@ public sealed class PowerMenuForm : Form
 
     private void OnShown(object? sender, EventArgs e)
     {
-        _inputBlocker.BeginBlock(_bluetoothAddress);
+        if (!_inputBlocker.BeginBlock(_bluetoothAddress))
+        {
+            string reason = _inputBlocker.UnavailableReason ?? "Unknown reason.";
+            AppLogger.Warn($"Controller input blocking was not enabled: {reason}");
+            MessageBox.Show(
+                "Controller input could not be isolated from other apps for this power menu session." +
+                $"{Environment.NewLine}{Environment.NewLine}{reason}",
+                "Xbox Guide Tray",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
         _overlay.Show();
         Activate();
         Focus();
@@ -210,13 +221,46 @@ public sealed class PowerMenuForm : Form
             y += 60;
         }
 
-        using Font hintFont = new("Segoe UI", 9, FontStyle.Italic);
-        g.DrawString(
-            "D-pad / Left Stick to move   A to select   B or Guide to cancel   Esc or click outside to close",
-            hintFont,
-            Brushes.Gainsboro,
-            24,
-            Height - 42);
+        using Font hintFont = new("Segoe UI", 10, FontStyle.Regular);
+        DrawCancelHint(g, hintFont);
+    }
+
+    private void DrawCancelHint(Graphics g, Font labelFont)
+    {
+        const int margin = 24;
+        const int buttonSize = 22;
+        const int gap = 8;
+
+        string label = "cancel";
+        SizeF labelSize = g.MeasureString(label, labelFont);
+
+        int totalWidth = buttonSize + gap + (int)Math.Ceiling(labelSize.Width);
+        int buttonY = Height - margin - buttonSize;
+        int startX = Width - margin - totalWidth;
+
+        Rectangle buttonBounds = new(startX, buttonY, buttonSize, buttonSize);
+        using Pen circlePen = new(Color.FromArgb(200, 200, 200), 1.5f);
+        g.DrawEllipse(circlePen, buttonBounds);
+
+        using Font buttonFont = new("Segoe UI", 9, FontStyle.Bold);
+        Rectangle textBounds = new(
+            buttonBounds.X + 1,
+            buttonBounds.Y + 1,
+            buttonBounds.Width,
+            buttonBounds.Height);
+        TextRenderer.DrawText(
+            g,
+            "B",
+            buttonFont,
+            textBounds,
+            Color.Gainsboro,
+            TextFormatFlags.HorizontalCenter |
+            TextFormatFlags.VerticalCenter |
+            TextFormatFlags.NoPadding |
+            TextFormatFlags.SingleLine);
+
+        float labelY = buttonY + (buttonSize - labelSize.Height) / 2f;
+        g.DrawString(label, labelFont, Brushes.Gainsboro, startX + buttonSize + gap, labelY);
     }
 
     private static GraphicsPath CreateRoundedRect(Rectangle bounds, int radius)

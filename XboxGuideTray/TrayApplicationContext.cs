@@ -15,6 +15,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly ApplicationLauncher _applicationLauncher = new();
     private readonly PowerService _powerService = new();
     private readonly ControllerInputBlocker _controllerInputBlocker = new();
+    private readonly HidHideInstallerService _hidHideInstallerService = new();
     private readonly TrayIconManager _trayIconManager;
     private readonly AppConfig _config;
     private PowerMenuForm? _powerMenuForm;
@@ -29,6 +30,8 @@ public sealed class TrayApplicationContext : ApplicationContext
             onOpenSettings: ShowSettings,
             onDisconnectController: () => _ = HandleDisconnectControllerAsync(),
             onToggleStartup: ToggleStartup,
+            onInstallHidHide: ShowHidHideInstall,
+            isHidHideInstalled: () => _hidHideInstallerService.IsInstalled,
             onAbout: ShowAbout,
             onExit: ExitThread);
 
@@ -89,6 +92,12 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         using AboutForm about = new();
         about.ShowDialog();
+    }
+
+    private void ShowHidHideInstall()
+    {
+        using HidHideInstallForm form = new();
+        form.ShowDialog();
     }
 
     private void SaveSettings(AppConfig config)
@@ -194,13 +203,20 @@ public sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
+        _ = ShowPowerMenuAsync();
+    }
+
+    private async Task ShowPowerMenuAsync()
+    {
+        ulong bluetoothAddress = await ResolveConfiguredBluetoothAddressAsync();
+
         _powerMenuForm = new PowerMenuForm(
             _guideButtonService,
             _controllerInputBlocker,
-            ResolveConfiguredBluetoothAddress(),
-            turnOffPc: () => _powerService.Shutdown(),
+            bluetoothAddress,
+            turnOffPc: () => ExecutePowerAction(_powerService.Shutdown, "shut down"),
             turnOffController: () => _ = DisconnectControllerFromMenuAsync(),
-            restartPc: () => _powerService.Restart());
+            restartPc: () => ExecutePowerAction(_powerService.Restart, "restart"));
         _guideButtonService.SuppressUntilGuideReleased();
         _powerMenuForm.FormClosed += (_, _) =>
         {
@@ -211,6 +227,38 @@ public sealed class TrayApplicationContext : ApplicationContext
             }
         };
         _powerMenuForm.Show();
+    }
+
+    private void ExecutePowerAction(Action action, string actionLabel)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Power menu {actionLabel} failed.");
+            MessageBox.Show(
+                $"Could not {actionLabel} the PC:{Environment.NewLine}{ex.Message}",
+                "Xbox Guide Tray",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
+
+    private async Task<ulong> ResolveConfiguredBluetoothAddressAsync()
+    {
+        if (BluetoothAddressHelper.TryParse(_config.Controller.BluetoothAddress, out ulong address))
+        {
+            return address;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_config.Controller.DeviceInstanceId))
+        {
+            return await PairedDeviceService.ResolveAddressFromDeviceIdAsync(_config.Controller.DeviceInstanceId);
+        }
+
+        return 0;
     }
 
     private async Task DisconnectControllerFromMenuAsync()

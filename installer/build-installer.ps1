@@ -34,7 +34,13 @@ function Find-InnoSetupCompiler {
         }
     }
 
-    throw "Inno Setup 6 was not found. Install it from https://jrsoftware.org/isinfo.php and rerun this script."
+    throw @"
+Inno Setup 6 was not found. Install it, then rerun this script:
+
+  winget install --id JRSoftware.InnoSetup -e
+
+Or download from https://jrsoftware.org/isinfo.php
+"@
 }
 
 Write-Host "Publishing Xbox Guide Tray (self-contained win-x64)..."

@@ -8,69 +8,63 @@ namespace XboxGuideTray.Services;
 /// </summary>
 public sealed class ControllerInputBlocker : IDisposable
 {
-    private readonly HidHideControlService? _hidHide;
     private readonly List<string> _addedInstanceIds = new();
     private bool? _previousActive;
     private int _blockDepth;
+    private string? _lastFailureReason;
 
-    public ControllerInputBlocker()
+    public bool IsAvailable
     {
-        try
+        get
         {
-            _hidHide = new HidHideControlService();
-            if (!_hidHide.IsInstalled)
-            {
-                UnavailableReason = "HidHide driver is not installed.";
-                return;
-            }
-
-            if (!_hidHide.IsOperational)
-            {
-                UnavailableReason = "HidHide driver is installed but not operational.";
-                return;
-            }
-
-            IsAvailable = true;
-        }
-        catch (Exception ex)
-        {
-            UnavailableReason = ex.Message;
-            AppLogger.Warn($"HidHide is unavailable: {ex.Message}");
+            TryCreateService(out HidHideControlService? service, out _);
+            return service != null;
         }
     }
 
-    public bool IsAvailable { get; private set; }
+    public string? UnavailableReason => _lastFailureReason;
 
-    public string? UnavailableReason { get; private set; }
-
-    public void BeginBlock(ulong bluetoothAddress)
+    public bool BeginBlock(ulong bluetoothAddress)
     {
-        if (!IsAvailable || _hidHide == null || bluetoothAddress == 0)
+        _lastFailureReason = null;
+
+        if (bluetoothAddress == 0)
         {
-            return;
+            _lastFailureReason = "No controller Bluetooth address is configured.";
+            AppLogger.Warn(_lastFailureReason);
+            return false;
+        }
+
+        if (!TryCreateService(out HidHideControlService? hidHide, out string? unavailableReason) || hidHide == null)
+        {
+            _lastFailureReason = unavailableReason;
+            AppLogger.Warn($"HidHide input blocking skipped: {unavailableReason}");
+            return false;
         }
 
         if (_blockDepth++ > 0)
         {
-            return;
+            return true;
         }
 
         try
         {
-            EnsureAppWhitelisted(Application.ExecutablePath);
+            string appPath = Path.GetFullPath(Application.ExecutablePath);
+            EnsureAppWhitelisted(hidHide, appPath);
 
-            _previousActive = _hidHide.IsActive;
+            _previousActive = hidHide.IsActive;
             _addedInstanceIds.Clear();
 
-            IReadOnlyList<string> instanceIds = ControllerHidEnumerator.GetInputPathInstanceIds(bluetoothAddress);
+            IReadOnlyList<string> instanceIds = ControllerHidEnumerator.GetHidHideBlockInstanceIds(bluetoothAddress);
             if (instanceIds.Count == 0)
             {
-                AppLogger.Warn("No controller HID paths found for input blocking.");
+                _lastFailureReason = "No controller device paths were found for HidHide.";
+                AppLogger.Warn(_lastFailureReason);
                 _blockDepth = 0;
-                return;
+                return false;
             }
 
-            HashSet<string> existing = new(_hidHide.BlockedInstanceIds, StringComparer.OrdinalIgnoreCase);
+            HashSet<string> existing = new(hidHide.BlockedInstanceIds, StringComparer.OrdinalIgnoreCase);
             foreach (string instanceId in instanceIds)
             {
                 if (existing.Contains(instanceId))
@@ -78,25 +72,28 @@ public sealed class ControllerInputBlocker : IDisposable
                     continue;
                 }
 
-                _hidHide.AddBlockedInstanceId(instanceId);
+                hidHide.AddBlockedInstanceId(instanceId);
                 _addedInstanceIds.Add(instanceId);
             }
 
-            _hidHide.IsActive = true;
+            hidHide.IsActive = true;
             AppLogger.Info(
-                $"Blocked controller input from other apps ({instanceIds.Count} HID path(s), " +
-                $"{_addedInstanceIds.Count} newly added to HidHide).");
+                $"HidHide active for power menu ({instanceIds.Count} device path(s), " +
+                $"{_addedInstanceIds.Count} newly added, app whitelisted: {appPath}).");
+            return true;
         }
         catch (Exception ex)
         {
+            _lastFailureReason = ex.Message;
             AppLogger.Error(ex, "Failed to block controller input.");
-            EndBlockInternal();
+            EndBlockInternal(hidHide);
+            return false;
         }
     }
 
     public void EndBlock()
     {
-        if (!IsAvailable || _hidHide == null || _blockDepth <= 0)
+        if (_blockDepth <= 0)
         {
             return;
         }
@@ -106,7 +103,10 @@ public sealed class ControllerInputBlocker : IDisposable
             return;
         }
 
-        EndBlockInternal();
+        if (TryCreateService(out HidHideControlService? hidHide, out _) && hidHide != null)
+        {
+            EndBlockInternal(hidHide);
+        }
     }
 
     public void Dispose()
@@ -114,18 +114,43 @@ public sealed class ControllerInputBlocker : IDisposable
         EndBlock();
     }
 
-    private void EndBlockInternal()
+    private static bool TryCreateService(out HidHideControlService? service, out string? unavailableReason)
     {
-        if (_hidHide == null)
-        {
-            return;
-        }
+        service = null;
+        unavailableReason = null;
 
+        try
+        {
+            HidHideControlService candidate = new();
+            if (!candidate.IsInstalled)
+            {
+                unavailableReason = "HidHide driver is not installed.";
+                return false;
+            }
+
+            if (!candidate.IsOperational)
+            {
+                unavailableReason = "HidHide is installed but not operational. Restart your PC after installing it.";
+                return false;
+            }
+
+            service = candidate;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            unavailableReason = ex.Message;
+            return false;
+        }
+    }
+
+    private void EndBlockInternal(HidHideControlService hidHide)
+    {
         try
         {
             foreach (string instanceId in _addedInstanceIds)
             {
-                _hidHide.RemoveBlockedInstanceId(instanceId);
+                hidHide.RemoveBlockedInstanceId(instanceId);
             }
         }
         catch (Exception ex)
@@ -140,7 +165,7 @@ public sealed class ControllerInputBlocker : IDisposable
             {
                 try
                 {
-                    _hidHide.IsActive = _previousActive.Value;
+                    hidHide.IsActive = _previousActive.Value;
                 }
                 catch (Exception ex)
                 {
@@ -154,18 +179,13 @@ public sealed class ControllerInputBlocker : IDisposable
         }
     }
 
-    private void EnsureAppWhitelisted(string appPath)
+    private static void EnsureAppWhitelisted(HidHideControlService hidHide, string appPath)
     {
-        if (_hidHide == null)
-        {
-            return;
-        }
-
-        bool alreadyListed = _hidHide.ApplicationPaths
-            .Any(path => string.Equals(path, appPath, StringComparison.OrdinalIgnoreCase));
+        bool alreadyListed = hidHide.ApplicationPaths
+            .Any(path => string.Equals(Path.GetFullPath(path), appPath, StringComparison.OrdinalIgnoreCase));
         if (!alreadyListed)
         {
-            _hidHide.AddApplicationPath(appPath, throwIfInvalid: true);
+            hidHide.AddApplicationPath(appPath, throwIfInvalid: true);
         }
     }
 }

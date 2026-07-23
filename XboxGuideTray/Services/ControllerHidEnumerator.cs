@@ -14,11 +14,13 @@ internal static class ControllerHidEnumerator
     private const int ErrorNoMoreItems = 259;
     private const int ErrorInsufficientBuffer = 122;
 
+    public static IReadOnlyList<string> GetHidHideBlockInstanceIds(ulong bluetoothAddress) =>
+        FindRelatedInstanceIds(bluetoothAddress);
+
     public static IReadOnlyList<string> GetInputPathInstanceIds(ulong bluetoothAddress) =>
         FindRelatedInstanceIds(bluetoothAddress)
             .Where(id =>
                 id.StartsWith("HID\\", StringComparison.OrdinalIgnoreCase) ||
-                // Bluetooth GATT Human Interface Device service (0x1812).
                 id.Contains("{00001812", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
