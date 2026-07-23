@@ -1,0 +1,18 @@
+Third-party components
+========================
+
+HidHide (optional)
+------------------
+Copyright (c) Nefarius Software Solutions e.U.
+Licensed under the MIT License.
+https://github.com/nefarius/HidHide
+
+HidHide is a kernel-mode filter driver used to isolate controller input
+during the power menu. It is installed only when you select that option
+in the Xbox Guide Tray setup wizard.
+
+Nefarius.Drivers.HidHide (.NET wrapper)
+---------------------------------------
+Copyright (c) Nefarius Software Solutions e.U.
+Licensed under the MIT License.
+https://github.com/nefarius/Nefarius.Drivers.HidHide
