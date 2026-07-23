@@ -14,6 +14,7 @@
     <Authors>Xbox Guide Tray</Authors>
     <Product>Xbox Guide Tray</Product>
     <Description>Xbox controller Bluetooth management, Guide button, and power menu.</Description>
+    <ApplicationIcon>Assets\Tray.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

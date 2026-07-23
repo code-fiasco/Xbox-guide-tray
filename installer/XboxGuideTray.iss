@@ -54,7 +54,7 @@ Source: "redist\{#HidHideFileName}"; DestDir: "{tmp}"; DestName: "{#HidHideFileN
 #endif
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\Assets\Tray.ico"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{app}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
